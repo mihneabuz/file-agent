@@ -3,7 +3,8 @@ import bodyParser from 'body-parser';
 import readline from 'readline';
 import fs from 'fs';
 import { exit } from 'process';
-import http from 'http'
+import http from 'http';
+const fuzzyFinder = require('fuzzy-finder');
 
 const config = JSON.parse(fs.readFileSync('./config.json').toString());
 console.log(config);
@@ -17,7 +18,7 @@ async function main() {
     res.send('Server is running!');
   });
 
-  server.get('/files', (req, res) => {
+  server.post('/files', (req, res) => {
     const path = req.body.path;
 
     if (path != '' && !path) {
@@ -49,7 +50,7 @@ async function main() {
     console.log(`Server started on port ${config.port}`);
   })
 
-  server.post('/files/create', (req: any, res: any) => {
+  server.post('/files/create', (req, res) => {
     const name = req.body.path;
     const type = req.body.type;
 
@@ -57,7 +58,74 @@ async function main() {
       res.send("Bad request");
       return;
     }
+
+    const fullPath = config.root + '/' + name;
+    
+    let error = null;
+    if (type == "dir") {
+      fs.mkdir(fullPath, err => {
+        error = err; 
+      });
+    } else if (type == "file") {
+      const content = req.body.content;
+      const handle = fs.openSync(fullPath, 'w');
+
+      if (content) {
+        fs.writeFile(handle, content, err => {
+          error = err; 
+        });
+      }
+
+      fs.closeSync(handle);
+    } else {
+      res.send("Bad file type ");
+      return;
+    }
+
+    if (error == null) {
+      res.send("Done!");
+      return;
+    }
   });
+
+  server.post('/files/delete', (req, res) =>{
+    const name = req.body.path;
+   
+    if (!name) {
+      res.send("Bad request");
+      return;
+    }
+
+    const fullPath = config.root + '/' + name;
+
+    fs.rm(fullPath, { recursive: true, force: true }, () => {
+    });
+
+    res.send("Done!")
+    return;
+  });
+
+  server.post('/files/search', (req, res) => {
+    const pattern = req.body.pattern;
+
+    if (!pattern) {
+      res.send("Bad request");
+      return;
+    }
+
+    const files = walk(config.root)
+      .filter((file) => file.startsWith(config.root))
+      .map((file) => file.substring(config.root.length + 1));
+
+    const matched = fuzzyFinder(pattern, files);
+    res.send(matched.map((match: any) => {
+      return {
+        name: match.match,
+        type: "file"
+      }
+    }));
+    return;
+  })
 
   ////////////////////////////////// CONNECT ///////////////////////////////////
   const body = {
@@ -119,3 +187,20 @@ input.question(`Press enter to exit\n`, _ => {
   disconnect.write(JSON.stringify(body));
   disconnect.end();
 })
+
+var walk = function(dir: string) {
+    var results: string[] = [];
+    var list = fs.readdirSync(dir);
+    list.forEach(function(file) {
+        file = dir + '/' + file;
+        var stat = fs.statSync(file);
+        if (stat && stat.isDirectory()) { 
+            /* Recurse into a subdirectory */
+            results = results.concat(walk(file));
+        } else { 
+            /* Is a file */
+            results.push(file);
+        }
+    });
+    return results;
+}

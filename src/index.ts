@@ -18,10 +18,10 @@ async function main() {
 
   // CHECK IF BACKEND
   server.use((req, res, next) => {
-    if (req.socket.remoteAddress !== config.serverAddress && req.socket.remoteAddress !== config.address) {
-      res.send("leave...");
-      return;
-    }
+    // if (req.socket.remoteAddress !== config.serverAddress && req.socket.remoteAddress !== config.address) {
+    //   res.send("leave...");
+    //   return;
+    // }
     next();
   });
 
@@ -81,17 +81,29 @@ async function main() {
     const name = req.body.path;
     const type = req.body.type;
 
+    console.log(req.body);
+
     if (!name || !type) {
-      res.send(resultBad("bad request"));
-      return;
+        res.send(resultBad("bad request"));
+        return;
     }
 
     const fullPath = config.root + '/' + name;
     
     if (type == "dir") {
-      fs.mkdirSync(fullPath);
+      let err = null;
+      try {
+        fs.mkdirSync(fullPath);
+      } catch (error) {
+        err = error;
+      }
+
+      if (err !== null) {
+        res.send(resultBad("dir already exists"));
+        return;
+      }
+
     } else if (type == "file") {
-      console.log(req.body);
       const content = req.body.content;
       const handle = fs.openSync(fullPath, 'w');
 
@@ -106,6 +118,9 @@ async function main() {
       res.send(resultBad("bad request: bad file type"));
       return;
     }
+
+    res.send(resultGood);
+    return;
   });
 
       ////  DELETE  ////
@@ -189,7 +204,7 @@ async function main() {
     } else {
       res.send(resultBad("empty file"));
     }
-    return
+    return;
 
   });
 
@@ -198,12 +213,17 @@ async function main() {
     const orderBy = req.body.orderBy;
     const count = req.body.count ? req.body.count : 50;
     const procs = (await psList()).map((proc) => {
-      return {'name': proc.name, 'pid': proc.pid, 'cpu': proc.cpu, 'mem': proc.memory};
+      return {
+        'name': proc.cmd !== undefined ? proc.cmd.slice(0, 36) + (proc.cmd.length > 36 ? "..." : "") : "(null)",
+        'pid': proc.pid,
+        'cpu': proc.cpu,
+        'mem': proc.memory
+      };
     });
 
     if (orderBy === 'cpu') {
       res.send(procs.sort((a: any, b: any) => b.cpu - a.cpu).slice(0, count));
-    } else if (orderBy === 'mem'){
+    } else if (orderBy === 'mem') {
       res.send(procs.sort((a: any, b: any) => b.mem - a.mem).slice(0, count));
     } else {
       res.send(procs.slice(0, count));
@@ -219,14 +239,13 @@ async function main() {
   const body: any = {
     'ip': config.address,
     'port': config.port,
-    'root': config.root
+    'root': config.root,
+    'name': config.name
   }
 
   if (config.token) {
     body.token = config.token;
   }
-
-  console.log(body);
 
   const connect = http.request({
     hostname: config.serverAddress,

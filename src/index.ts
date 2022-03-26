@@ -6,7 +6,7 @@ import { exit } from 'process';
 import http from 'http';
 import psList from 'ps-list';
 import fuzzyFinder from 'fuzzy-finder';
-import ps from 'ps-node';
+import { base64decode } from 'nodejs-base64';
 
 const config = JSON.parse(fs.readFileSync('./config.json').toString());
 config.address = config.address ? config.address : require("ip").address();
@@ -15,6 +15,15 @@ console.log(config);
 async function main() {
   const server = express();
   server.use(bodyParser.json());
+
+  // CHECK IF BACKEND
+  server.use((req, res, next) => {
+    if (req.socket.remoteAddress !== config.serverAddress && req.socket.remoteAddress !== config.address) {
+      res.send("leave...");
+      return;
+    }
+    next();
+  });
 
   ////////////////////////////////// ROUTES ///////////////////////////////////
   server.get('/running', (_, res) => {
@@ -26,7 +35,7 @@ async function main() {
     const path = req.body.path;
 
     if (path != '' && !path) {
-      res.send("Bad req");
+      res.send(resultBad("bad request"));
       return;
     }
 
@@ -56,7 +65,7 @@ async function main() {
     const path = req.body.path;
      
     if (path != '' && !path) {
-      res.send("Bad req");
+      res.send(resultBad("bad request"));
       return;
     }
 
@@ -73,7 +82,7 @@ async function main() {
     const type = req.body.type;
 
     if (!name || !type) {
-      res.send("Bad request");
+      res.send(resultBad("bad request"));
       return;
     }
 
@@ -94,7 +103,7 @@ async function main() {
       }
 
     } else {
-      res.send("Bad file type ");
+      res.send(resultBad("bad request: bad file type"));
       return;
     }
   });
@@ -104,15 +113,14 @@ async function main() {
     const name = req.body.path;
    
     if (!name) {
-      res.send("Bad request");
+      res.send(resultBad("bad request"));
       return;
     }
 
     const fullPath = config.root + '/' + name;
-
     fs.rmSync(fullPath, { recursive: true, force: true });
 
-    res.send("Done!")
+    res.send(resultGood);
     return;
   });
 
@@ -121,7 +129,7 @@ async function main() {
     const pattern = req.body.pattern;
 
     if (!pattern) {
-      res.send("Bad request");
+      res.send(resultBad("bad request"));
       return;
     }
 
@@ -138,6 +146,52 @@ async function main() {
     }));
     return;
   })
+
+      ////  UPLOAD  ////
+  server.post('/files/upload', (req, res) => {
+    const path = req.body.path;
+    const base64file = req.body.base64file;
+   
+    if (!path || !base64file) {
+      res.send(resultBad("bad request"));
+      return;
+    }
+
+    const fullPath = config.root + (path ? ('/' + path) : '');
+    const handle = fs.openSync(fullPath, 'w');
+
+    if (handle) {
+      const content = base64decode(base64file);
+      fs.writeFileSync(handle, content);
+      res.send(resultGood);
+    } else {
+      res.send(resultBad("cannot create file"));
+    }
+    return;
+    
+  });
+
+      ////  DOWNLOAD  ////
+  server.post('/files/download', (req, res) => {
+    const path = req.body.path;
+   
+    if (!path) {
+      res.send(resultBad("bad request"));
+      return;
+    }
+
+    const fullPath = config.root + (path ? ('/' + path) : '');
+    const content = fs.readFileSync(fullPath);
+
+    if (content) {
+      const base64file = content.toString('base64');
+      res.send(base64file);
+    } else {
+      res.send(resultBad("empty file"));
+    }
+    return
+
+  });
 
       ////  PROCS  ////
   server.post('/procs', async (req, res) => {
@@ -250,7 +304,7 @@ const resultGood = {
 
 const resultBad = (message: string) => {
   return {
-    success: true,
+    success: false,
     message: message
   }
 };

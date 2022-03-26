@@ -4,9 +4,12 @@ import readline from 'readline';
 import fs from 'fs';
 import { exit } from 'process';
 import http from 'http';
-const fuzzyFinder = require('fuzzy-finder');
+import psList from 'ps-list';
+import fuzzyFinder from 'fuzzy-finder';
+import ps from 'ps-node';
 
 const config = JSON.parse(fs.readFileSync('./config.json').toString());
+config.address = config.address ? config.address : require("ip").address();
 console.log(config);
 
 async function main() {
@@ -18,6 +21,7 @@ async function main() {
     res.send('Server is running!');
   });
 
+      ////  LIST  ////
   server.post('/files', (req, res) => {
     const path = req.body.path;
 
@@ -46,10 +50,24 @@ async function main() {
     res.send(processed);
     return;
   })
-  server.listen(config.port, () => {
-    console.log(`Server started on port ${config.port}`);
-  })
 
+      ////  CONTENT  ////
+  server.post('/files/content', (req, res) => {
+    const path = req.body.path;
+     
+    if (path != '' && !path) {
+      res.send("Bad req");
+      return;
+    }
+
+    const fullPath = config.root + (path ? ('/' + path) : '');
+    const content = fs.readFileSync(fullPath);
+
+    res.send(content);
+    return;
+  });
+
+      ////  CREATE  ////
   server.post('/files/create', (req, res) => {
     const name = req.body.path;
     const type = req.body.type;
@@ -61,33 +79,27 @@ async function main() {
 
     const fullPath = config.root + '/' + name;
     
-    let error = null;
     if (type == "dir") {
-      fs.mkdir(fullPath, err => {
-        error = err; 
-      });
+      fs.mkdirSync(fullPath);
     } else if (type == "file") {
+      console.log(req.body);
       const content = req.body.content;
       const handle = fs.openSync(fullPath, 'w');
 
       if (content) {
-        fs.writeFile(handle, content, err => {
-          error = err; 
-        });
+        fs.writeFileSync(handle, content);
+        fs.closeSync(handle);
+      } else {
+        fs.closeSync(handle);
       }
 
-      fs.closeSync(handle);
     } else {
       res.send("Bad file type ");
       return;
     }
-
-    if (error == null) {
-      res.send("Done!");
-      return;
-    }
   });
 
+      ////  DELETE  ////
   server.post('/files/delete', (req, res) =>{
     const name = req.body.path;
    
@@ -98,13 +110,13 @@ async function main() {
 
     const fullPath = config.root + '/' + name;
 
-    fs.rm(fullPath, { recursive: true, force: true }, () => {
-    });
+    fs.rmSync(fullPath, { recursive: true, force: true });
 
     res.send("Done!")
     return;
   });
 
+      ////  SEARCH  ////
   server.post('/files/search', (req, res) => {
     const pattern = req.body.pattern;
 
@@ -127,12 +139,40 @@ async function main() {
     return;
   })
 
+      ////  PROCS  ////
+  server.post('/procs', async (req, res) => {
+    const orderBy = req.body.orderBy;
+    const count = req.body.count ? req.body.count : 50;
+    const procs = (await psList()).map((proc) => {
+      return {'name': proc.name, 'pid': proc.pid, 'cpu': proc.cpu, 'mem': proc.memory};
+    });
+
+    if (orderBy === 'cpu') {
+      res.send(procs.sort((a: any, b: any) => b.cpu - a.cpu).slice(0, count));
+    } else if (orderBy === 'mem'){
+      res.send(procs.sort((a: any, b: any) => b.mem - a.mem).slice(0, count));
+    } else {
+      res.send(procs.slice(0, count));
+    }
+    return;
+  });
+
+  server.listen(config.port, config.address, () => {
+    console.log(`Server started on port ${config.port}`);
+  })
+
   ////////////////////////////////// CONNECT ///////////////////////////////////
-  const body = {
-    'ip': require("ip").address(),
+  const body: any = {
+    'ip': config.address,
     'port': config.port,
     'root': config.root
   }
+
+  if (config.token) {
+    body.token = config.token;
+  }
+
+  console.log(body);
 
   const connect = http.request({
     hostname: config.serverAddress,
@@ -180,7 +220,7 @@ input.question(`Press enter to exit\n`, _ => {
   })
 
   const body = {
-    'ip': require("ip").address(),
+    'ip': config.address,
     'port': config.port,
   }
 
@@ -195,12 +235,22 @@ var walk = function(dir: string) {
         file = dir + '/' + file;
         var stat = fs.statSync(file);
         if (stat && stat.isDirectory()) { 
-            /* Recurse into a subdirectory */
             results = results.concat(walk(file));
         } else { 
-            /* Is a file */
             results.push(file);
         }
     });
     return results;
 }
+
+const resultGood = {
+  success: true,
+  message: "OK"
+};
+
+const resultBad = (message: string) => {
+  return {
+    success: true,
+    message: message
+  }
+};

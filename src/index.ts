@@ -55,7 +55,6 @@ async function main() {
       return { "name": dirent.name, "type": type}
     })
 
-    console.log(processed);
     res.send(processed);
     return;
   })
@@ -80,8 +79,6 @@ async function main() {
   server.post('/files/create', (req, res) => {
     const name = req.body.path;
     const type = req.body.type;
-
-    console.log(req.body);
 
     if (!name || !type) {
         res.send(resultBad("bad request"));

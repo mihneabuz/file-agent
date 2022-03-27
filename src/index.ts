@@ -173,7 +173,7 @@ async function main() {
     const handle = fs.openSync(fullPath, 'w');
 
     if (handle) {
-      const content = Buffer.from(base64file).toString("base64");
+      const content = base64decode(base64file);
       fs.writeFileSync(handle, content);
       res.send(resultGood);
     } else {
@@ -241,7 +241,7 @@ async function main() {
     'name': config.name,
   }
 
-  if (config.token) {
+  if (config.accessToken) {
     body.token = config.accessToken;
   }
 

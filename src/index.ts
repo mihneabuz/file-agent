@@ -18,10 +18,10 @@ async function main() {
 
   // CHECK IF BACKEND
   server.use((req, res, next) => {
-    // if (req.socket.remoteAddress !== config.serverAddress && req.socket.remoteAddress !== config.address) {
-    //   res.send("leave...");
-    //   return;
-    // }
+    if (req.socket.remoteAddress !== config.serverAddress && req.socket.remoteAddress !== config.address) {
+      res.send("leave...");
+      return;
+    }
     next();
   });
 
@@ -173,7 +173,7 @@ async function main() {
     const handle = fs.openSync(fullPath, 'w');
 
     if (handle) {
-      const content = base64decode(base64file);
+      const content = Buffer.from(base64file).toString("base64");
       fs.writeFileSync(handle, content);
       res.send(resultGood);
     } else {
@@ -232,16 +232,17 @@ async function main() {
     console.log(`Server started on port ${config.port}`);
   })
 
+
   ////////////////////////////////// CONNECT ///////////////////////////////////
   const body: any = {
     'ip': config.address,
     'port': config.port,
     'root': config.root,
-    'name': config.name
+    'name': config.name,
   }
 
   if (config.token) {
-    body.token = config.token;
+    body.token = config.accessToken;
   }
 
   const connect = http.request({
@@ -312,6 +313,32 @@ var walk = function(dir: string) {
     });
     return results;
 }
+
+setInterval(() => {
+  const disconnect = http.request({
+    hostname: config.serverAddress,
+    port: config.serverPort,
+    method: 'POST',
+    path: '/agent/heartbeat',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  }, () => {
+    console.log("heartbeat");
+  });
+
+  disconnect.on('error', err => {
+    console.warn(err);
+  })
+
+  const body = {
+    'ip': config.address,
+    'port': config.port,
+  }
+
+  disconnect.write(JSON.stringify(body));
+  disconnect.end();
+}, 10000);
 
 const resultGood = {
   success: true,

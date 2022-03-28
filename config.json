@@ -1,12 +1,12 @@
 {
-    "name": "arch server",
+    "name": "my server",
     "root": "/Users/metaminds/Desktop/test",
 
-    "address": "10.81.1.47",
+    "address": "127.0.0.1",
     "port": 3000,
 
-    "serverAddress": "10.81.134.247",
+    "serverAddress": "127.0.0.1",
     "serverPort": 8080,
 
-    "accessToken": "" 
+    "accessToken": ""
 }

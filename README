@@ -1,1 +1,10 @@
+# HackItAll 2022
+
 File Agent in Node
+
+Connects to https://github.com/mihneabuz/spring-app/tree/hackitall
+
+Can be queried for information about file system or proccesses
+Also exposes routes that can interact with the file system, create/delete/upload etc
+
+Code is pretty bad as it was written for a 24 hour hackathon (but it works :)

@@ -324,7 +324,7 @@ setInterval(() => {
       'Content-Type': 'application/json'
     }
   }, () => {
-    console.log("heartbeat");
+    process.stdout.write("  ");
   });
 
   disconnect.on('error', err => {
@@ -338,7 +338,7 @@ setInterval(() => {
 
   disconnect.write(JSON.stringify(body));
   disconnect.end();
-}, 10000);
+}, 5000);
 
 const resultGood = {
   success: true,
